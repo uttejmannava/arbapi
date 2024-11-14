@@ -111,14 +111,18 @@ def best_odds(processed_odds: list) -> list:
             "market": market,
             "best_odds": {
                 "outcome_a": {
+                    "name": None,
                     "odds": None,
                     "bookmaker": None,
+                    "last_update": None,
                     "game_link": None,
                     "game_sid": None
                 },
                 "outcome_b": {
+                    "name": None,
                     "odds": None,
                     "bookmaker": None,
+                    "last_update": None,
                     "game_link": None,
                     "game_sid": None
                 }
@@ -137,12 +141,16 @@ def best_odds(processed_odds: list) -> list:
                     outcome_type = "outcome_a"
                 elif outcome_name == "Under":
                     outcome_type = "outcome_b"
+                
+
 
                 if outcome_type and (game_best_odds["best_odds"][outcome_type]["odds"] is None or outcome_details[0] > game_best_odds["best_odds"][outcome_type]["odds"]):
                     game_best_odds["best_odds"][outcome_type]["odds"] = outcome_details[0]
                     if len(outcome_details) > 1:
                         game_best_odds["best_odds"][outcome_type]["point"] = outcome_details[1]
+                    game_best_odds["best_odds"][outcome_type]["name"] = outcome_name
                     game_best_odds["best_odds"][outcome_type]["bookmaker"] = bookmaker["name"]
+                    game_best_odds["best_odds"][outcome_type]["last_update"] = bookmaker["last_update"]
                     game_best_odds["best_odds"][outcome_type]["game_link"] = bookmaker["game_link"]
                     game_best_odds["best_odds"][outcome_type]["game_sid"] = bookmaker["game_sid"]
 
@@ -169,7 +177,7 @@ def arb_pairs(best_odds: list, total_stake: float = 1000) -> dict:
         arb_value = implied_prob_a + implied_prob_b
 
         # arb pair
-        if arb_value > 1:
+        if arb_value < 1:
 
             # assuming $1000 total stake per arb
             stake_a = total_stake * implied_prob_a / (implied_prob_a + implied_prob_b)
@@ -184,7 +192,7 @@ def arb_pairs(best_odds: list, total_stake: float = 1000) -> dict:
             wb_stake_b = total_stake - wb_stake_a
 
             game["arbitrage"] = {
-                "arb_value": arb_value - 1,
+                "arb_value": -(arb_value - 1),
                 "arb_amount": {
                     "outcome_a": stake_a,
                     "outcome_b": stake_b
@@ -209,7 +217,7 @@ def arb_pairs(best_odds: list, total_stake: float = 1000) -> dict:
             stake_b = 1000 * implied_prob_b / (implied_prob_a + implied_prob_b)
             
             game["arbitrage"] = {
-                "arb_value": arb_value - 1,
+                "arb_value": -(arb_value - 1),
                 "arb_amount": {
                     "outcome_a": stake_a,
                     "outcome_b": stake_b
