@@ -33,7 +33,6 @@ def get_odds(sport: str, api_key: str, market: str, bookmakers: list) -> list:
             }
 
             for bookmaker in game["bookmakers"]:   
-
                 bookmaker_data = {
                     "name": bookmaker["title"],
                     "market": market,
@@ -43,16 +42,21 @@ def get_odds(sport: str, api_key: str, market: str, bookmakers: list) -> list:
                     "odds": {}
                 }
 
+                hook_lines = True
+                
                 if bookmaker["markets"]:
                     for outcome in bookmaker["markets"][0]["outcomes"]:
-                        bookmaker_data["odds"][outcome["name"]] = [outcome["price"]]
-                        
-                        # appends corresponding spread or totals line
                         if "point" in outcome:
-                            bookmaker_data["odds"][outcome["name"]].append(outcome["point"])
+                            if not str(outcome["point"]).endswith(".5"):
+                                hook_lines = False
+                                break
+                            bookmaker_data["odds"][outcome["name"]] = [outcome["price"], outcome["point"]]
+                        else:
+                            bookmaker_data["odds"][outcome["name"]] = [outcome["price"]]
 
-                game_data["bookmakers"].append(bookmaker_data)
-                
+                if hook_lines:
+                    game_data["bookmakers"].append(bookmaker_data)
+            
             formatted_data.append(game_data)
 
         # remaining requests - key rotation
@@ -64,7 +68,6 @@ def get_odds(sport: str, api_key: str, market: str, bookmakers: list) -> list:
                                })
 
         return formatted_data
-        #return json.dumps(raw_data)
 
     
     except requests.exceptions.RequestException as e:
@@ -143,7 +146,6 @@ def best_odds(processed_odds: list) -> list:
                     outcome_type = "outcome_b"
                 
 
-
                 if outcome_type and (game_best_odds["best_odds"][outcome_type]["odds"] is None or outcome_details[0] > game_best_odds["best_odds"][outcome_type]["odds"]):
                     game_best_odds["best_odds"][outcome_type]["odds"] = outcome_details[0]
                     if len(outcome_details) > 1:
@@ -154,7 +156,40 @@ def best_odds(processed_odds: list) -> list:
                     game_best_odds["best_odds"][outcome_type]["game_link"] = bookmaker["game_link"]
                     game_best_odds["best_odds"][outcome_type]["game_sid"] = bookmaker["game_sid"]
 
-        best_odds.append(game_best_odds)
+        # # Adjust for spreads: ensure the points for outcome_a and outcome_b are inverses
+        # if market == "spreads":
+        #     outcome_a = game_best_odds["best_odds"]["outcome_a"]
+        #     outcome_b = game_best_odds["best_odds"]["outcome_b"]
+
+        #     # Only pair spreads if both have valid points and are inverses
+        #     if outcome_a["point"] is not None and outcome_b["point"] is not None:
+        #         if outcome_a["point"] != -outcome_b["point"]:
+        #             # Reset the unmatched side
+        #             if abs(outcome_a["point"]) < abs(outcome_b["point"]):
+        #                 game_best_odds["best_odds"]["outcome_b"] = {
+        #                     "name": None,
+        #                     "odds": None,
+        #                     "point": None,
+        #                     "bookmaker": None,
+        #                     "last_update": None,
+        #                     "game_link": None,
+        #                     "game_sid": None,
+        #                 }
+        #             else:
+        #                 game_best_odds["best_odds"]["outcome_a"] = {
+        #                     "name": None,
+        #                     "odds": None,
+        #                     "point": None,
+        #                     "bookmaker": None,
+        #                     "last_update": None,
+        #                     "game_link": None,
+        #                     "game_sid": None,
+        #                 }
+        
+        if not (game_best_odds["best_odds"]["outcome_a"]["odds"] == None and game_best_odds["best_odds"]["outcome_b"]["odds"] == None):
+            best_odds.append(game_best_odds)
+        
+    best_odds.append(processed_odds[-2:])
 
     return best_odds
 
@@ -162,11 +197,13 @@ def best_odds(processed_odds: list) -> list:
 # find arb and low-hold pairs
 def arb_pairs(best_odds: list, total_stake: float = 1000) -> dict:
 
+    data = best_odds[:-1]
+
     pairs = {"arb_pairs": [],
              "low_hold_pairs": []
              }
     
-    for game in best_odds:
+    for game in data:
 
         decimal_a = game["best_odds"]["outcome_a"]["odds"]
         decimal_b = game["best_odds"]["outcome_b"]["odds"]
@@ -183,27 +220,27 @@ def arb_pairs(best_odds: list, total_stake: float = 1000) -> dict:
             stake_a = total_stake * implied_prob_a / (implied_prob_a + implied_prob_b)
             stake_b = total_stake * implied_prob_b / (implied_prob_a + implied_prob_b)
 
-            # weighted outcome a bet (win on a, BE on b)
+            # weighted outcome a bet (win on a, break-even on b)
             wa_stake_b = (total_stake + 0) / decimal_b
             wa_stake_a = total_stake - wa_stake_b
 
-            # weighted outcome b bet (win on b, BE on a)
+            # weighted outcome b bet (win on b, break-even on a)
             wb_stake_a = (total_stake + 0) / decimal_a
             wb_stake_b = total_stake - wb_stake_a
 
             game["arbitrage"] = {
-                "arb_value": -(arb_value - 1),
+                "arb_value": f"{round(-(arb_value - 1) * 100, 3)}%",
                 "arb_amount": {
-                    "outcome_a": stake_a,
-                    "outcome_b": stake_b
+                    "outcome_a": round(stake_a, 2),
+                    "outcome_b": round(stake_b, 2)
                 },
                 "weighted_amounts_a": {
-                    "outcome_a": wa_stake_a,
-                    "outcome_b": wa_stake_b
+                    "outcome_a": round(wa_stake_a, 2),
+                    "outcome_b": round(wa_stake_b, 2)
                 },
                 "weighted_amounts_b": {
-                    "outcome_a": wb_stake_a,
-                    "outcome_b": wb_stake_b
+                    "outcome_a": round(wb_stake_a, 2),
+                    "outcome_b": round(wb_stake_b, 2)
                 }
             }
 
@@ -217,13 +254,15 @@ def arb_pairs(best_odds: list, total_stake: float = 1000) -> dict:
             stake_b = 1000 * implied_prob_b / (implied_prob_a + implied_prob_b)
             
             game["arbitrage"] = {
-                "arb_value": -(arb_value - 1),
+                "arb_value": f"{round(-(arb_value - 1) * 100, 3)}%",
                 "arb_amount": {
-                    "outcome_a": stake_a,
-                    "outcome_b": stake_b
+                    "outcome_a": round(stake_a, 2),
+                    "outcome_b": round(stake_b, 2)
                 }
             }
 
             pairs["low_hold_pairs"].append(game)
+    
+    pairs["metadata"] = best_odds[-1:]
 
     return pairs
