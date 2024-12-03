@@ -1,5 +1,5 @@
-# TTL in seconds
-CACHE_TTL = 15 * 60
+# TTL in seconds - 5 minutes
+CACHE_TTL = 5 * 60
 
 SPORT = 'basketball_nba'
 

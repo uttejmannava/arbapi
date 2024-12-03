@@ -25,3 +25,6 @@ dagster_home/
 *.swp
 *.swo
 .DS_Store
+
+# Redis
+dump.rdb
