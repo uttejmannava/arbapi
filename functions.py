@@ -29,10 +29,10 @@ def get_odds(sport: str, api_key: str, market: str, bookmakers: list) -> list:
                 "home_team": game["home_team"],
                 "away_team": game["away_team"],
                 "commence_time": datetime.fromisoformat(game["commence_time"].replace("Z", "+00:00")).strftime("%Y-%m-%d %H:%M:%S"),
-                "bookmakers": []
+                "bookmakers": {}
             }
 
-            for bookmaker in game["bookmakers"]:   
+            for bookmaker in game["bookmakers"]:
                 bookmaker_data = {
                     "name": bookmaker["title"],
                     "market": market,
@@ -42,34 +42,76 @@ def get_odds(sport: str, api_key: str, market: str, bookmakers: list) -> list:
                     "odds": {}
                 }
 
-                hook_lines = True
-                
                 if bookmaker["markets"]:
-                    for outcome in bookmaker["markets"][0]["outcomes"]:
-                        if "point" in outcome:
-                            if not str(outcome["point"]).endswith(".5"):
-                                hook_lines = False
-                                break
-                            bookmaker_data["odds"][outcome["name"]] = [outcome["price"], outcome["point"]]
-                        else:
-                            bookmaker_data["odds"][outcome["name"]] = [outcome["price"]]
+                    # Initialize a temporary dictionary to store outcomes
+                    temp_odds = {}
 
-                if hook_lines:
-                    game_data["bookmakers"].append(bookmaker_data)
-            
+                    for outcome in bookmaker["markets"][0]["outcomes"]:
+                        point = outcome.get("point")
+                        if point is not None:
+                            point = float(point)
+                        odds = outcome["price"]
+
+                        if market == "totals":
+                            # Store outcomes in temp_odds to ensure they are added once
+                            if outcome["name"] == "Over":
+                                temp_odds["home"] = (outcome["name"], [odds, point])
+                            elif outcome["name"] == "Under":
+                                temp_odds["away"] = (outcome["name"], [odds, point])
+
+                        elif market == "spreads":
+                            # Handle spreads, considering potential flips
+                            if outcome["name"] == game["home_team"]:
+                                home_point = point
+                                away_point = -point
+                                temp_odds["home"] = (outcome["name"], [odds, point])
+                            elif outcome["name"] == game["away_team"]:
+                                away_point = point
+                                home_point = -point
+                                temp_odds["away"] = (outcome["name"], [odds, point])
+
+                        elif market == "h2h":
+                            # Directly add h2h odds, ensuring home team is first
+                            if outcome["name"] == game["home_team"]:
+                                temp_odds["home"] = (outcome["name"], [odds])
+                            elif outcome["name"] == game["away_team"]:
+                                temp_odds["away"] = (outcome["name"], [odds])
+
+                    # Add bookmaker data for totals
+                    if market == "totals" and "home" in temp_odds and "away" in temp_odds:
+                        if point not in game_data["bookmakers"]:
+                            game_data["bookmakers"][point] = []
+                        bookmaker_data["odds"][temp_odds["home"][0]] = temp_odds["home"][1]
+                        bookmaker_data["odds"][temp_odds["away"][0]] = temp_odds["away"][1]
+                        game_data["bookmakers"][point].append(bookmaker_data)
+
+                    # Ensure the home team comes first in the odds dictionary for spreads
+                    if market == "spreads" and "home" in temp_odds and "away" in temp_odds:
+                        bookmaker_data["odds"][temp_odds["home"][0]] = temp_odds["home"][1]
+                        bookmaker_data["odds"][temp_odds["away"][0]] = temp_odds["away"][1]
+
+                        # Use a string representation of the tuple to group spreads
+                        point_pair = f"{temp_odds['home'][1][1]}/{temp_odds['away'][1][1]}"
+                        if point_pair not in game_data["bookmakers"]:
+                            game_data["bookmakers"][point_pair] = []
+                        game_data["bookmakers"][point_pair].append(bookmaker_data)
+
+                    # Add bookmaker data for h2h
+                    if market == "h2h" and "home" in temp_odds and "away" in temp_odds:
+                        bookmaker_data["odds"][temp_odds["home"][0]] = temp_odds["home"][1]
+                        bookmaker_data["odds"][temp_odds["away"][0]] = temp_odds["away"][1]
+                        if "default" not in game_data["bookmakers"]:
+                            game_data["bookmakers"]["default"] = []
+                        game_data["bookmakers"]["default"].append(bookmaker_data)
+
             formatted_data.append(game_data)
 
-        # remaining requests - key rotation
         remaining_requests = response.headers.get('x-requests-remaining', 'Unknown')
         formatted_data.append({"remaining_requests": remaining_requests})
-        formatted_data.append({"sport": sport,
-                               "market": market,
-                               "bookmakers": bookmakers
-                               })
-
+        formatted_data.append({"sport": sport, "market": market, "bookmakers": bookmakers})
+ 
         return formatted_data
 
-    
     except requests.exceptions.RequestException as e:
         if isinstance(e, requests.exceptions.HTTPError):
             if e.response.status_code == 401:
@@ -98,7 +140,6 @@ def get_odds(sport: str, api_key: str, market: str, bookmakers: list) -> list:
 
 # find best odds for each market passed in
 def best_odds(processed_odds: list) -> list:
-    
     # just the games, not the requests header
     data = processed_odds[:-2]
     sport, market = processed_odds[-1]["sport"], processed_odds[-1]["market"]
@@ -112,7 +153,11 @@ def best_odds(processed_odds: list) -> list:
             "away_team": game["away_team"],
             "commence_time": game["commence_time"],
             "market": market,
-            "best_odds": {
+            "best_odds": {}
+        }
+
+        if market == "h2h":
+            best_h2h = {
                 "outcome_a": {
                     "name": None,
                     "odds": None,
@@ -130,63 +175,125 @@ def best_odds(processed_odds: list) -> list:
                     "game_sid": None
                 }
             }
-        }
+            for bookmaker in game["bookmakers"]["default"]:
+                for outcome_name, outcome_details in bookmaker["odds"].items():
+                    if outcome_name == game["home_team"]:
+                        if best_h2h["outcome_a"]["odds"] is None or outcome_details[0] > best_h2h["outcome_a"]["odds"]:
+                            best_h2h["outcome_a"].update({
+                                "name": outcome_name,
+                                "odds": outcome_details[0],
+                                "bookmaker": bookmaker["name"],
+                                "last_update": bookmaker["last_update"],
+                                "game_link": bookmaker["game_link"],
+                                "game_sid": bookmaker["game_sid"]
+                            })
+                    elif outcome_name == game["away_team"]:
+                        if best_h2h["outcome_b"]["odds"] is None or outcome_details[0] > best_h2h["outcome_b"]["odds"]:
+                            best_h2h["outcome_b"].update({
+                                "name": outcome_name,
+                                "odds": outcome_details[0],
+                                "bookmaker": bookmaker["name"],
+                                "last_update": bookmaker["last_update"],
+                                "game_link": bookmaker["game_link"],
+                                "game_sid": bookmaker["game_sid"]
+                            })
+            game_best_odds["best_odds"] = best_h2h
 
-        for bookmaker in game["bookmakers"]:
-            for outcome_name, outcome_details in bookmaker["odds"].items():
+        elif market == "totals":
+            for point, bookmakers in game["bookmakers"].items():
+                best_totals = {
+                    "outcome_a": {
+                        "name": None,
+                        "odds": None,
+                        "point": None,
+                        "bookmaker": None,
+                        "last_update": None,
+                        "game_link": None,
+                        "game_sid": None
+                    },
+                    "outcome_b": {
+                        "name": None,
+                        "odds": None,
+                        "point": None,
+                        "bookmaker": None,
+                        "last_update": None,
+                        "game_link": None,
+                        "game_sid": None
+                    }
+                }
+                for bookmaker in bookmakers:
+                    for outcome_name, outcome_details in bookmaker["odds"].items():
+                        if outcome_name == "Over":
+                            if best_totals["outcome_a"]["odds"] is None or outcome_details[0] > best_totals["outcome_a"]["odds"]:
+                                best_totals["outcome_a"].update({
+                                    "name": outcome_name,
+                                    "odds": outcome_details[0],
+                                    "point": point,
+                                    "bookmaker": bookmaker["name"],
+                                    "last_update": bookmaker["last_update"],
+                                    "game_link": bookmaker["game_link"],
+                                    "game_sid": bookmaker["game_sid"]
+                                })
+                        elif outcome_name == "Under":
+                            if best_totals["outcome_b"]["odds"] is None or outcome_details[0] > best_totals["outcome_b"]["odds"]:
+                                best_totals["outcome_b"].update({
+                                    "name": outcome_name,
+                                    "odds": outcome_details[0],
+                                    "point": point,
+                                    "bookmaker": bookmaker["name"],
+                                    "last_update": bookmaker["last_update"],
+                                    "game_link": bookmaker["game_link"],
+                                    "game_sid": bookmaker["game_sid"]
+                                })
+                game_best_odds["best_odds"][point] = best_totals
 
-                outcome_type = None
-                if outcome_name == game["home_team"]:
-                    outcome_type = "outcome_a"
-                elif outcome_name == game["away_team"]:
-                    outcome_type = "outcome_b"
-                elif outcome_name == "Over":
-                    outcome_type = "outcome_a"
-                elif outcome_name == "Under":
-                    outcome_type = "outcome_b"
-                
+        elif market == "spreads":
+            for point_pair, bookmakers in game["bookmakers"].items():
+                best_spreads = {
+                    "outcome_a": {
+                        "name": None,
+                        "odds": None,
+                        "bookmaker": None,
+                        "last_update": None,
+                        "game_link": None,
+                        "game_sid": None
+                    },
+                    "outcome_b": {
+                        "name": None,
+                        "odds": None,
+                        "bookmaker": None,
+                        "last_update": None,
+                        "game_link": None,
+                        "game_sid": None
+                    }
+                }
+                for bookmaker in bookmakers:
+                    for outcome_name, outcome_details in bookmaker["odds"].items():
+                        if outcome_name == game["home_team"]:
+                            if best_spreads["outcome_a"]["odds"] is None or outcome_details[0] > best_spreads["outcome_a"]["odds"]:
+                                best_spreads["outcome_a"].update({
+                                    "name": outcome_name,
+                                    "odds": outcome_details[0],
+                                    "point": point_pair,
+                                    "bookmaker": bookmaker["name"],
+                                    "last_update": bookmaker["last_update"],
+                                    "game_link": bookmaker["game_link"],
+                                    "game_sid": bookmaker["game_sid"]
+                                })
+                        elif outcome_name == game["away_team"]:
+                            if best_spreads["outcome_b"]["odds"] is None or outcome_details[0] > best_spreads["outcome_b"]["odds"]:
+                                best_spreads["outcome_b"].update({
+                                    "name": outcome_name,
+                                    "odds": outcome_details[0],
+                                    "point": point_pair,
+                                    "bookmaker": bookmaker["name"],
+                                    "last_update": bookmaker["last_update"],
+                                    "game_link": bookmaker["game_link"],
+                                    "game_sid": bookmaker["game_sid"]
+                                })
+                game_best_odds["best_odds"][point_pair] = best_spreads
 
-                if outcome_type and (game_best_odds["best_odds"][outcome_type]["odds"] is None or outcome_details[0] > game_best_odds["best_odds"][outcome_type]["odds"]):
-                    game_best_odds["best_odds"][outcome_type]["odds"] = outcome_details[0]
-                    if len(outcome_details) > 1:
-                        game_best_odds["best_odds"][outcome_type]["point"] = outcome_details[1]
-                    game_best_odds["best_odds"][outcome_type]["name"] = outcome_name
-                    game_best_odds["best_odds"][outcome_type]["bookmaker"] = bookmaker["name"]
-                    game_best_odds["best_odds"][outcome_type]["last_update"] = bookmaker["last_update"]
-                    game_best_odds["best_odds"][outcome_type]["game_link"] = bookmaker["game_link"]
-                    game_best_odds["best_odds"][outcome_type]["game_sid"] = bookmaker["game_sid"]
-
-        # # Adjust for spreads: ensure the points for outcome_a and outcome_b are inverses
-        # if market == "spreads":
-        #     outcome_a = game_best_odds["best_odds"]["outcome_a"]
-        #     outcome_b = game_best_odds["best_odds"]["outcome_b"]
-
-        #     # Only pair spreads if both have valid points and are inverses
-        #     if outcome_a["point"] is not None and outcome_b["point"] is not None:
-        #         if outcome_a["point"] != -outcome_b["point"]:
-        #             # Reset the unmatched side
-        #             if abs(outcome_a["point"]) < abs(outcome_b["point"]):
-        #                 game_best_odds["best_odds"]["outcome_b"] = {
-        #                     "name": None,
-        #                     "odds": None,
-        #                     "point": None,
-        #                     "bookmaker": None,
-        #                     "last_update": None,
-        #                     "game_link": None,
-        #                     "game_sid": None,
-        #                 }
-        #             else:
-        #                 game_best_odds["best_odds"]["outcome_a"] = {
-        #                     "name": None,
-        #                     "odds": None,
-        #                     "point": None,
-        #                     "bookmaker": None,
-        #                     "last_update": None,
-        #                     "game_link": None,
-        #                     "game_sid": None,
-        #                 }
-        
-        if not (game_best_odds["best_odds"]["outcome_a"]["odds"] == None and game_best_odds["best_odds"]["outcome_b"]["odds"] == None):
+        if game_best_odds["best_odds"]:
             best_odds.append(game_best_odds)
         
     best_odds.append(processed_odds[-2:])
@@ -196,73 +303,99 @@ def best_odds(processed_odds: list) -> list:
 
 # find arb and low-hold pairs
 def arb_pairs(best_odds: list, total_stake: float = 1000) -> dict:
-
     data = best_odds[:-1]
+    pairs = {"arb_pairs": [], "low_hold_pairs": [], "low_vig_pairs": []}
 
-    pairs = {"arb_pairs": [],
-             "low_hold_pairs": []
-             }
-    
     for game in data:
+        game_id = game["game_id"]
+        sport = game["sport"]
+        market = game["market"]
+        home_team = game["home_team"]
+        away_team = game["away_team"]
+        commence_time = game["commence_time"]
 
-        decimal_a = game["best_odds"]["outcome_a"]["odds"]
-        decimal_b = game["best_odds"]["outcome_b"]["odds"]
+        if market == "h2h":
+            best_h2h = game["best_odds"]
+            arb_value, arb_data = calculate_arb(best_h2h, total_stake)
+            if arb_value < 1:
+                pairs["arb_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data))
+            elif arb_value == 1:
+                pairs["low_hold_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data))
+            elif 1 < arb_value < 1.01:
+                pairs["low_vig_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data))
 
-        implied_prob_a = 1 / decimal_a
-        implied_prob_b = 1 / decimal_b
+        elif market == "totals":
+            for point, best_totals in game["best_odds"].items():
+                arb_value, arb_data = calculate_arb(best_totals, total_stake)
+                if arb_value < 1:
+                    pairs["arb_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, point))
+                elif arb_value == 1:
+                    pairs["low_hold_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, point))
+                elif 1 < arb_value < 1.01:
+                    pairs["low_vig_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, point))
 
-        arb_value = implied_prob_a + implied_prob_b
+        elif market == "spreads":
+            for point_pair, best_spreads in game["best_odds"].items():
+                arb_value, arb_data = calculate_arb(best_spreads, total_stake)
+                if arb_value < 1:
+                    pairs["arb_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, point_pair))
+                elif arb_value == 1:
+                    pairs["low_hold_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, point_pair))
+                elif 1 < arb_value < 1.01:
+                    pairs["low_vig_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, point_pair))
 
-        # arb pair
-        if arb_value < 1:
-
-            # assuming $1000 total stake per arb
-            stake_a = total_stake * implied_prob_a / (implied_prob_a + implied_prob_b)
-            stake_b = total_stake * implied_prob_b / (implied_prob_a + implied_prob_b)
-
-            # weighted outcome a bet (win on a, break-even on b)
-            wa_stake_b = (total_stake + 0) / decimal_b
-            wa_stake_a = total_stake - wa_stake_b
-
-            # weighted outcome b bet (win on b, break-even on a)
-            wb_stake_a = (total_stake + 0) / decimal_a
-            wb_stake_b = total_stake - wb_stake_a
-
-            game["arbitrage"] = {
-                "arb_value": f"{round(-(arb_value - 1) * 100, 3)}%",
-                "arb_amount": {
-                    "outcome_a": round(stake_a, 2),
-                    "outcome_b": round(stake_b, 2)
-                },
-                "weighted_amounts_a": {
-                    "outcome_a": round(wa_stake_a, 2),
-                    "outcome_b": round(wa_stake_b, 2)
-                },
-                "weighted_amounts_b": {
-                    "outcome_a": round(wb_stake_a, 2),
-                    "outcome_b": round(wb_stake_b, 2)
-                }
-            }
-
-            pairs["arb_pairs"].append(game)
-
-        # low-hold pair
-        elif arb_value == 1:
-            
-            # assuming $1000 total stake per low-hold
-            stake_a = 1000 * implied_prob_a / (implied_prob_a + implied_prob_b)
-            stake_b = 1000 * implied_prob_b / (implied_prob_a + implied_prob_b)
-            
-            game["arbitrage"] = {
-                "arb_value": f"{round(-(arb_value - 1) * 100, 3)}%",
-                "arb_amount": {
-                    "outcome_a": round(stake_a, 2),
-                    "outcome_b": round(stake_b, 2)
-                }
-            }
-
-            pairs["low_hold_pairs"].append(game)
-    
     pairs["metadata"] = best_odds[-1:]
-
     return pairs
+
+def calculate_arb(best_odds, total_stake):
+    decimal_a = best_odds["outcome_a"]["odds"]
+    decimal_b = best_odds["outcome_b"]["odds"]
+
+    implied_prob_a = 1 / decimal_a
+    implied_prob_b = 1 / decimal_b
+
+    arb_value = implied_prob_a + implied_prob_b
+
+    # Calculate stakes for arbitrage
+    stake_a = total_stake * implied_prob_a / (implied_prob_a + implied_prob_b)
+    stake_b = total_stake * implied_prob_b / (implied_prob_a + implied_prob_b)
+
+    # Weighted outcome a bet (win on a, break-even on b)
+    wa_stake_b = (total_stake + 0) / decimal_b
+    wa_stake_a = total_stake - wa_stake_b
+
+    # Weighted outcome b bet (win on b, break-even on a)
+    wb_stake_a = (total_stake + 0) / decimal_a
+    wb_stake_b = total_stake - wb_stake_a
+
+    arb_data = {
+        "arb_value": f"{round(-(arb_value - 1) * 100, 3)}%",
+        "arb_amount": {
+            "outcome_a": round(stake_a, 2),
+            "outcome_b": round(stake_b, 2)
+        },
+        "weighted_amounts_a": {
+            "outcome_a": round(wa_stake_a, 2),
+            "outcome_b": round(wa_stake_b, 2)
+        },
+        "weighted_amounts_b": {
+            "outcome_a": round(wb_stake_a, 2),
+            "outcome_b": round(wb_stake_b, 2)
+        }
+    }
+
+    return arb_value, arb_data
+
+def format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, point=None):
+    arb_info = {
+        "game_id": game_id,
+        "sport": sport,
+        "market": market,
+        "home_team": home_team,
+        "away_team": away_team,
+        "commence_time": commence_time,
+        "arbitrage": arb_data
+    }
+    if point:
+        arb_info["point"] = point
+    return arb_info
