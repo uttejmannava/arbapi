@@ -14,10 +14,29 @@ executor = ThreadPoolExecutor()
 
 redis_client = redis.Redis(host='localhost', port=6379, db=0)
 
+# Load API key list from environment
+api_keys = json.loads(os.environ['ODDS_KEY_LIST'])
+current_key_index_key = "current_api_key_index"
+
+# Initialize the current API key index if not set
+if not redis_client.exists(current_key_index_key):
+    redis_client.set(current_key_index_key, 0)
+
+def get_current_api_key():
+    index = int(redis_client.get(current_key_index_key))
+    return api_keys[index]
+
+def rotate_api_key():
+    current_index = int(redis_client.get(current_key_index_key))
+    new_index = (current_index + 1) % len(api_keys)
+    redis_client.set(current_key_index_key, new_index)
+    print(f"Rotated API key to index {new_index}")
+
 # async function to offload get_odds
 async def async_get_odds(sport, market):
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(executor, get_odds, sport, os.getenv("ODDS_API_KEY"), market, BOOKMAKERS)
+    current_api_key = get_current_api_key()
+    return await loop.run_in_executor(executor, get_odds, sport, current_api_key, market, BOOKMAKERS)
 
 @app.route('/odds/raw/<sport>/<market>', methods=['GET'])
 async def get_raw_odds(sport, market):
@@ -40,6 +59,12 @@ async def get_raw_odds(sport, market):
     # Ensure raw_odds is a dictionary
     if isinstance(raw_odds, list):
         raw_odds = {"data": raw_odds}
+
+    # Check remaining requests and rotate API key if necessary
+    remaining_requests = raw_odds['data'][-2]["remaining_requests"]
+    print(f"Remaining requests: {remaining_requests}")
+    if remaining_requests == 0:
+       rotate_api_key()
 
     # Dump raw_odds json into Redis cache
     redis_client.setex(cache_key, timedelta(seconds=CACHE_TTL), json.dumps(raw_odds))
