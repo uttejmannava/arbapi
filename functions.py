@@ -369,7 +369,7 @@ def calculate_arb(best_odds, total_stake):
     wb_stake_b = total_stake - wb_stake_a
 
     arb_data = {
-        "arb_value": f"{round(-(arb_value - 1) * 100, 3)}%",
+        "arb": f"{round(-(arb_value - 1) * 100, 3)}%",
         "arb_amount": {
             "outcome_a": round(stake_a, 2),
             "outcome_b": round(stake_b, 2)
