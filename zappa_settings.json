@@ -1,0 +1,16 @@
+{
+    "production": {
+        "app_function": "app.app",
+        "exclude": [
+            "boto3",
+            "dateutil",
+            "botocore",
+            "s3transfer",
+            "concurrent"
+        ],
+        "profile_name": null,
+        "project_name": "arbapi",
+        "runtime": "python3.11",
+        "s3_bucket": "zappa-yssksdx7g"
+    }
+}
