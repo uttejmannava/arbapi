@@ -38,6 +38,12 @@ async def async_get_odds(sport, market):
     current_api_key = get_current_api_key()
     return await loop.run_in_executor(executor, get_odds, sport, current_api_key, market, BOOKMAKERS)
 
+
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({"message": "Welcome to the Arb API!"})
+
+
 @app.route('/odds/raw/<sport>/<market>', methods=['GET'])
 async def get_raw_odds(sport, market):
     cache_key = f'raw_odds_data_{sport}_{market}'
