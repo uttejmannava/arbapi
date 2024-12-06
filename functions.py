@@ -318,31 +318,31 @@ def arb_pairs(best_odds: list, total_stake: float = 1000) -> dict:
             best_h2h = game["best_odds"]
             arb_value, arb_data = calculate_arb(best_h2h, total_stake)
             if arb_value < 1:
-                pairs["arb_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data))
+                pairs["arb_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_h2h))
             elif arb_value == 1:
-                pairs["low_hold_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data))
+                pairs["low_hold_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_h2h))
             elif 1 < arb_value < 1.01:
-                pairs["low_vig_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data))
+                pairs["low_vig_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_h2h))
 
         elif market == "totals":
             for point, best_totals in game["best_odds"].items():
                 arb_value, arb_data = calculate_arb(best_totals, total_stake)
                 if arb_value < 1:
-                    pairs["arb_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, point))
+                    pairs["arb_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_totals, point))
                 elif arb_value == 1:
-                    pairs["low_hold_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, point))
+                    pairs["low_hold_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_totals, point))
                 elif 1 < arb_value < 1.01:
-                    pairs["low_vig_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, point))
+                    pairs["low_vig_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_totals, point))
 
         elif market == "spreads":
             for point_pair, best_spreads in game["best_odds"].items():
                 arb_value, arb_data = calculate_arb(best_spreads, total_stake)
                 if arb_value < 1:
-                    pairs["arb_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, point_pair))
+                    pairs["arb_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_spreads, point_pair))
                 elif arb_value == 1:
-                    pairs["low_hold_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, point_pair))
+                    pairs["low_hold_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_spreads, point_pair))
                 elif 1 < arb_value < 1.01:
-                    pairs["low_vig_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, point_pair))
+                    pairs["low_vig_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_spreads, point_pair))
 
     pairs["metadata"] = best_odds[-1:]
     return pairs
@@ -386,7 +386,7 @@ def calculate_arb(best_odds, total_stake):
 
     return arb_value, arb_data
 
-def format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, point=None):
+def format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_odds, point=None):
     arb_info = {
         "game_id": game_id,
         "sport": sport,
@@ -394,7 +394,19 @@ def format_arb_data(game_id, sport, market, home_team, away_team, commence_time,
         "home_team": home_team,
         "away_team": away_team,
         "commence_time": commence_time,
-        "arbitrage": arb_data
+        "arbitrage": arb_data,
+        "outcome_a_details": {
+            "bookmaker": best_odds["outcome_a"]["bookmaker"],
+            "game_link": best_odds["outcome_a"]["game_link"],
+            "game_sid": best_odds["outcome_a"]["game_sid"],
+            "last_update": best_odds["outcome_a"]["last_update"]
+        },
+        "outcome_b_details": {
+            "bookmaker": best_odds["outcome_b"]["bookmaker"],
+            "game_link": best_odds["outcome_b"]["game_link"],
+            "game_sid": best_odds["outcome_b"]["game_sid"],
+            "last_update": best_odds["outcome_b"]["last_update"]
+        }
     }
     if point:
         arb_info["point"] = point
