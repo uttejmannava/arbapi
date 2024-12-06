@@ -5,14 +5,15 @@ import json
 from datetime import timedelta, datetime
 from concurrent.futures import ThreadPoolExecutor
 import os
+import requests
 
 from constants import *
 from functions import get_odds, best_odds, arb_pairs
 
 app = Flask(__name__)
 executor = ThreadPoolExecutor()
-
-redis_client = redis.Redis(host='localhost', port=6379, db=0)
+redis_host = os.environ.get('REDIS_HOST')
+redis_client = redis.Redis(host=redis_host, port=6379, db=0, socket_timeout=5)
 
 # Load API key list from environment
 api_keys = json.loads(os.environ['ODDS_KEY_LIST'])
@@ -36,12 +37,29 @@ def rotate_api_key():
 async def async_get_odds(sport, market):
     loop = asyncio.get_event_loop()
     current_api_key = get_current_api_key()
-    return await loop.run_in_executor(executor, get_odds, sport, current_api_key, market, BOOKMAKERS)
+    try:
+        return await loop.run_in_executor(executor, get_odds, sport, current_api_key, market, BOOKMAKERS)
+    except Exception as e:
+        print(f"Error fetching odds: {e}")
+        return None
 
 
-@app.route('/', methods=['GET'])
+@app.route('/')
 def index():
-    return jsonify({"message": "Welcome to the Arb API!"})
+    try:
+        # Basic connectivity test to a public API
+        response = requests.get('https://api.ipify.org?format=json')
+        response.raise_for_status()  # Raise an error for bad responses
+        ip_info = response.json()
+        return jsonify({
+            "message": "Welcome to arb api",
+            "public_ip": ip_info.get('ip', 'Unavailable')
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            "message": "Welcome to arb api",
+            "error": f"Connectivity test failed: {e}"
+        }), 500
 
 
 @app.route('/odds/raw/<sport>/<market>', methods=['GET'])
@@ -61,6 +79,9 @@ async def get_raw_odds(sport, market):
         return jsonify(response)
 
     raw_odds = await async_get_odds(sport, market)
+    if raw_odds is None:
+        print("Failed to fetch raw odds.")
+        return jsonify({"error": "Failed to fetch raw odds."}), 500
 
     # Ensure raw_odds is a dictionary
     if isinstance(raw_odds, list):
@@ -97,3 +118,6 @@ async def get_arb_pairs(sport, market):
     arb_data = arb_pairs(best_data["data"])  # Access the list from the dictionary
     arb_data = {"data": arb_data, "timestamp": best_data.get('timestamp')}
     return jsonify(arb_data)
+
+if __name__ == '__main__':
+    app.run(debug=True)

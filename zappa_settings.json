@@ -6,6 +6,9 @@
         "project_name": "arbapi",
         "runtime": "python3.11",
         "s3_bucket": "zappa-yssksdx7g",
-        "timeout_seconds": 60
+        "timeout_seconds": 60,
+        "environment_variables": {
+            "REDIS_HOST": "arbapi-redis-001.v1zfiz.0001.use1.cache.amazonaws.com"
+        }
     }
 }
