@@ -175,7 +175,7 @@ def best_odds(processed_odds: list) -> list:
                     "game_sid": None
                 }
             }
-            for bookmaker in game["bookmakers"]["default"]:
+            for bookmaker in game["bookmakers"].get("default", []):
                 for outcome_name, outcome_details in bookmaker["odds"].items():
                     if outcome_name == game["home_team"]:
                         if best_h2h["outcome_a"]["odds"] is None or outcome_details[0] > best_h2h["outcome_a"]["odds"]:
@@ -316,33 +316,37 @@ def arb_pairs(best_odds: list, total_stake: float = 1000) -> dict:
 
         if market == "h2h":
             best_h2h = game["best_odds"]
-            arb_value, arb_data = calculate_arb(best_h2h, total_stake)
-            if arb_value < 1:
-                pairs["arb_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_h2h))
-            elif arb_value == 1:
-                pairs["low_hold_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_h2h))
-            elif 1 < arb_value < 1.01:
-                pairs["low_vig_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_h2h))
+            # Check if both odds are not None
+            if best_h2h["outcome_a"]["odds"] is not None and best_h2h["outcome_b"]["odds"] is not None:
+                arb_value, arb_data = calculate_arb(best_h2h, total_stake)
+                if arb_value < 1:
+                    pairs["arb_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_h2h))
+                elif arb_value == 1:
+                    pairs["low_hold_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_h2h))
+                elif 1 < arb_value < 1.01:
+                    pairs["low_vig_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_h2h))
 
         elif market == "totals":
             for point, best_totals in game["best_odds"].items():
-                arb_value, arb_data = calculate_arb(best_totals, total_stake)
-                if arb_value < 1:
-                    pairs["arb_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_totals, point))
-                elif arb_value == 1:
-                    pairs["low_hold_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_totals, point))
-                elif 1 < arb_value < 1.01:
-                    pairs["low_vig_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_totals, point))
+                if best_totals["outcome_a"]["odds"] is not None and best_totals["outcome_b"]["odds"] is not None:
+                    arb_value, arb_data = calculate_arb(best_totals, total_stake)
+                    if arb_value < 1:
+                        pairs["arb_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_totals, point))
+                    elif arb_value == 1:
+                        pairs["low_hold_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_totals, point))
+                    elif 1 < arb_value < 1.01:
+                        pairs["low_vig_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_totals, point))
 
         elif market == "spreads":
             for point_pair, best_spreads in game["best_odds"].items():
-                arb_value, arb_data = calculate_arb(best_spreads, total_stake)
-                if arb_value < 1:
-                    pairs["arb_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_spreads, point_pair))
-                elif arb_value == 1:
-                    pairs["low_hold_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_spreads, point_pair))
-                elif 1 < arb_value < 1.01:
-                    pairs["low_vig_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_spreads, point_pair))
+                if best_spreads["outcome_a"]["odds"] is not None and best_spreads["outcome_b"]["odds"] is not None:
+                    arb_value, arb_data = calculate_arb(best_spreads, total_stake)
+                    if arb_value < 1:
+                        pairs["arb_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_spreads, point_pair))
+                    elif arb_value == 1:
+                        pairs["low_hold_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_spreads, point_pair))
+                    elif 1 < arb_value < 1.01:
+                        pairs["low_vig_pairs"].append(format_arb_data(game_id, sport, market, home_team, away_team, commence_time, arb_data, best_spreads, point_pair))
 
     pairs["metadata"] = best_odds[-1:]
     return pairs
