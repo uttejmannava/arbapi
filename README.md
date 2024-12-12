@@ -30,3 +30,4 @@ ArbAPI identifies arbitrage, low-hold, and low-vig opportunities in sports betti
 
 Deployed at: https://iarh5shogk.execute-api.us-east-1.amazonaws.com/production
 Example: https://iarh5shogk.execute-api.us-east-1.amazonaws.com/production/odds/arb/basketball_nba/h2h
+(currently down bc i don't wanna get billed for the NAT Gateway 😹)
