@@ -12,8 +12,12 @@ from functions import get_odds, best_odds, arb_pairs
 
 app = Flask(__name__)
 executor = ThreadPoolExecutor()
-redis_host = os.environ.get('REDIS_HOST')
-redis_client = redis.Redis(host=redis_host, port=6379, db=0, socket_timeout=5)
+redis_client = redis.Redis(
+    host=os.environ['REDIS_HOST'],
+    port=6379,
+    password=os.environ['REDIS_PASSWORD'],
+    ssl=True,
+    )
 
 # load API key list
 api_keys = json.loads(os.environ['ODDS_KEY_LIST'])
