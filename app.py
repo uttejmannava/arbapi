@@ -15,11 +15,10 @@ executor = ThreadPoolExecutor()
 redis_host = os.environ.get('REDIS_HOST')
 redis_client = redis.Redis(host=redis_host, port=6379, db=0, socket_timeout=5)
 
-# Load API key list from environment
+# load API key list
 api_keys = json.loads(os.environ['ODDS_KEY_LIST'])
 current_key_index_key = "current_api_key_index"
 
-# Initialize the current API key index if not set
 if not redis_client.exists(current_key_index_key):
     redis_client.set(current_key_index_key, 0)
 
@@ -47,17 +46,16 @@ async def async_get_odds(sport, market):
 @app.route('/')
 def index():
     try:
-        # Basic connectivity test to a public API
         response = requests.get('https://api.ipify.org?format=json')
-        response.raise_for_status()  # Raise an error for bad responses
+        response.raise_for_status()
         ip_info = response.json()
         return jsonify({
-            "message": "Welcome to arb api",
+            "message": "Welcome to ArbAPI!",
             "public_ip": ip_info.get('ip', 'Unavailable')
         })
     except requests.exceptions.RequestException as e:
         return jsonify({
-            "message": "Welcome to arb api",
+            "message": "Welcome to ArbAPI!",
             "error": f"Connectivity test failed: {e}"
         }), 500
 

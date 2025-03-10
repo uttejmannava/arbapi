@@ -2,7 +2,6 @@ import requests
 import json
 from datetime import datetime
 
-# works for ML (h2h)
 def get_odds(sport: str, api_key: str, market: str, bookmakers: list) -> list:
     
     url = f"https://api.the-odds-api.com/v4/sports/{sport}/odds"

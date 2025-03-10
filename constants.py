@@ -4,8 +4,12 @@ CACHE_TTL = 5 * 60
 BOOKMAKERS =  [
     'betmgm',
     'betrivers',
-    'williamhill_us', # caesars
+    'ballybet', # caesars
     'draftkings',
     'fanduel',
     'espnbet', #theScore in Canada
+    'betway',
+    'leovegas',
+    '888sport',
+    'betvictor'
     ]
