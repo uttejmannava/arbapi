@@ -16,8 +16,7 @@ ArbAPI identifies arbitrage, low-hold, and low-vig opportunities in sports betti
 - **Data Fetching**: Requests for API calls, The Odds API for raw data
 - **Asynchronous Processing**: Asyncio and ThreadPoolExecutor for non-blocking I/O operations
 - **Caching**: Redis for caching odds data
-~~- **Deployment**: AWS Lambda with Zappa for serverless deployment~~
-- **Deployment**: Render for API hosting, Upstash for Redis caching
+- **Deployment**: ~~AWS Lambda with Zappa for serverless deployment~~ Render for API hosting, Upstash for Redis caching
 
 ~~## AWS Services Used~~
 
