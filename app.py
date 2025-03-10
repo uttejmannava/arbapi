@@ -8,7 +8,7 @@ import os
 import requests
 
 from constants import *
-from functions import get_odds, best_odds, arb_pairs
+from odds import get_odds, best_odds, arb_pairs
 
 app = Flask(__name__)
 executor = ThreadPoolExecutor()

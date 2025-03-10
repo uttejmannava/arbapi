@@ -402,13 +402,15 @@ def format_arb_data(game_id, sport, market, home_team, away_team, commence_time,
             "bookmaker": best_odds["outcome_a"]["bookmaker"],
             "game_link": best_odds["outcome_a"]["game_link"],
             "game_sid": best_odds["outcome_a"]["game_sid"],
-            "last_update": best_odds["outcome_a"]["last_update"]
+            "last_update": best_odds["outcome_a"]["last_update"],
+            "odds": best_odds["outcome_a"]["odds"]
         },
         "outcome_b_details": {
             "bookmaker": best_odds["outcome_b"]["bookmaker"],
             "game_link": best_odds["outcome_b"]["game_link"],
             "game_sid": best_odds["outcome_b"]["game_sid"],
-            "last_update": best_odds["outcome_b"]["last_update"]
+            "last_update": best_odds["outcome_b"]["last_update"],
+            "odds": best_odds["outcome_b"]["odds"]
         }
     }
     if point:

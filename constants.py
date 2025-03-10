@@ -4,12 +4,12 @@ CACHE_TTL = 5 * 60
 BOOKMAKERS =  [
     'betmgm',
     'betrivers',
-    'ballybet', # caesars
+    'ballybet',
     'draftkings',
     'fanduel',
     'espnbet', #theScore in Canada
-    'betway',
-    'leovegas',
+    # 'betway', # not working, feeds 3-way for h2h
+    # 'leovegas', # not working, feeds 3-way for h2h
     '888sport',
     'betvictor'
     ]
