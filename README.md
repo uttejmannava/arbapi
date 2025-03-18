@@ -26,6 +26,10 @@ ArbAPI identifies arbitrage, low-hold, and low-vig opportunities in sports betti
 ~~- **NAT Gateway**: Allows private subnets to access the internet; facilitates calls to underlying API for raw data.~~
 ~~- **CloudWatch Monitoring**: Monitors application performance and logs. My lifesaver in getting this API up and running 🙏.~~
 
+## Sample Result
+
+![Arbitrage pair found](images/Screenshot-Result.png)
+
 -----------------------------------------------
 
 Deployed at: https://arbapi.onrender.com/

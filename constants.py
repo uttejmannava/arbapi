@@ -10,6 +10,7 @@ BOOKMAKERS =  [
     'espnbet', #theScore in Canada
     # 'betway', # not working, feeds 3-way for h2h
     # 'leovegas', # not working, feeds 3-way for h2h
-    '888sport',
-    'betvictor'
+    'sport888',
+    'betvictor',
+    'pointsbetau'
     ]
